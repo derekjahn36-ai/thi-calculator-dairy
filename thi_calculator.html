@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field THI Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #161d13;
+    --bg-soft: #1f2818;
+    --panel: #ece1c4;
+    --panel-deep: #ded0a8;
+    --ink: #2a2015;
+    --ink-soft: #6b5c42;
+    --line: #a2916b;
+    --comfort: #5c8a4e;
+    --mild: #a9a23a;
+    --moderate: #d99b34;
+    --severe: #c66a34;
+    --emergency: #a83a2c;
+    --paper-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 18px 40px rgba(0,0,0,0.35);
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at top, #253321 0%, var(--bg) 60%);
+    color: var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    display:flex;
+    justify-content:center;
+    padding: 32px 16px 64px;
+  }
+  .device{
+    width:100%;
+    max-width: 480px;
+  }
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: var(--paper-shadow);
+  }
+  header.eyebrow{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    color:#cfd8c4;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0 4px 10px;
+  }
+  header.eyebrow span.dot{ color:#8fae7a; }
+  h1{
+    font-family:'Zilla Slab', serif;
+    font-weight:700;
+    font-size: 26px;
+    line-height:1.15;
+    margin:0 0 18px;
+    color:#f2ecd8;
+    padding: 0 4px;
+  }
+  .locate-row{
+    display:flex;
+    gap:8px;
+    margin: 0 0 18px;
+  }
+  button.primary, select.state-select{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    background: var(--panel-deep);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button.primary{
+    flex: 1;
+    background: var(--ink);
+    color: var(--panel);
+    border-color: var(--ink);
+    transition: opacity .15s ease;
+  }
+  button.primary:hover{ opacity:0.85; }
+  button.primary:disabled{ opacity:0.55; cursor:wait; }
+  select.state-select{
+    width: 128px;
+    background: var(--panel);
+  }
+  .status-line{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    min-height: 16px;
+    margin: -8px 0 18px 2px;
+  }
+  .gauge-panel{
+    padding: 28px 24px 22px;
+    margin-bottom: 14px;
+  }
+  .gauge-wrap{
+    position:relative;
+    width: 280px;
+    max-width:100%;
+    margin: 0 auto;
+  }
+  .gauge-readout{
+    position:absolute;
+    left:0; right:0;
+    bottom: 6px;
+    text-align:center;
+  }
+  .thi-value{
+    font-family:'Zilla Slab', serif;
+    font-weight:700;
+    font-size: 48px;
+    line-height:1;
+    color: var(--ink);
+  }
+  .thi-value .unit{
+    font-size: 15px;
+    font-family:'IBM Plex Mono',monospace;
+    color: var(--ink-soft);
+    margin-left:4px;
+  }
+  .thi-band-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform:uppercase;
+    margin-top: 4px;
+    font-weight:600;
+  }
+  .conditions-line{
+    text-align:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 14px;
+    letter-spacing:0.02em;
+  }
+  .needle{
+    transform-origin: 140px 140px;
+    transition: transform 1s cubic-bezier(.22,1,.36,1);
+  }
+  .loss-panel{
+    padding: 20px 22px 22px;
+    margin-bottom: 14px;
+  }
+  .section-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .confidence-pill{
+    font-size: 10px;
+    letter-spacing:0.06em;
+    padding: 3px 7px;
+    border: 1px solid var(--line);
+  }
+  .confidence-pill.high{ color:#2c5c22; border-color:#5c8a4e; background:rgba(92,138,78,0.12); }
+  .confidence-pill.est{ color:#7a5a1c; border-color:#d99b34; background:rgba(217,155,52,0.12); }
+  .inputs-row{
+    display:flex;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .input-field{ flex:1; }
+  .input-field label{
+    display:block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 5px;
+  }
+  .input-field .prefix-wrap{
+    display:flex;
+    align-items:center;
+    border: 1px solid var(--line);
+    background: #f6efdc;
+  }
+  .input-field .prefix-wrap span{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    padding-left: 8px;
+  }
+  .input-field input{
+    width:100%;
+    border: none;
+    background: transparent;
+    padding: 9px 8px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .input-field input:focus{ outline: 1px solid var(--ink); }
+  .loss-figure{
+    text-align:center;
+    padding-top: 4px;
+  }
+  .loss-figure .dollars{
+    font-family:'Zilla Slab', serif;
+    font-weight:700;
+    font-size: 40px;
+    color: var(--emergency);
+  }
+  .loss-figure .per-day{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    letter-spacing:0.06em;
+  }
+  .loss-note{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    line-height:1.5;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .scale-panel{ padding: 20px 22px 18px; }
+  .scale-bar{
+    display:flex;
+    height: 34px;
+    border: 1px solid var(--line);
+    position:relative;
+    margin-top: 8px;
+  }
+  .scale-bar .seg{ flex:1; position:relative; }
+  .scale-bar .seg.comfort{ background: var(--comfort); flex: 1.3; }
+  .scale-bar .seg.mild{ background: var(--mild); flex: 0.8; }
+  .scale-bar .seg.moderate{ background: var(--moderate); flex: 1.2; }
+  .scale-bar .seg.severe{ background: var(--severe); flex: 1.2; }
+  .scale-bar .seg.emergency{ background: var(--emergency); flex: 1.1; }
+  .scale-labels{
+    display:flex;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-soft);
+    justify-content: space-between;
+    margin-top: 6px;
+  }
+  .scale-marker{
+    position:absolute;
+    top:-9px;
+    width: 2px;
+    height: 52px;
+    background: var(--ink);
+  }
+  .scale-marker .tri{
+    position:absolute;
+    top:-7px;
+    left:-4px;
+    width:0;height:0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid var(--ink);
+  }
+  footer{
+    text-align:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    color:#8a9580;
+    margin-top: 20px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+<div class="device">
+
+  <header class="eyebrow">
+    <span>Field THI Monitor</span>
+    <span class="dot">● live</span>
+  </header>
+  <h1>How much heat stress is your herd carrying right now?</h1>
+
+  <div class="locate-row">
+    <button class="primary" id="locateBtn">Use my location</button>
+    <select class="state-select" id="stateSelect"></select>
+  </div>
+  <div class="status-line" id="statusLine">Set a location to begin.</div>
+
+  <div class="panel gauge-panel">
+    <div class="gauge-wrap">
+      <svg viewBox="0 0 280 160" width="100%">
+        <!-- band arcs, THI range mapped 50 -> 95 across 180deg -->
+        <g stroke-width="26" fill="none">
+          <path d="M 20 140 A 120 120 0 0 1 71 33"   stroke="var(--comfort)"/>
+          <path d="M 71 33 A 120 120 0 0 1 110 21"   stroke="var(--mild)"/>
+          <path d="M 110 21 A 120 120 0 0 1 178 25"  stroke="var(--moderate)"/>
+          <path d="M 178 25 A 120 120 0 0 1 231 60"  stroke="var(--severe)"/>
+          <path d="M 231 60 A 120 120 0 0 1 260 140" stroke="var(--emergency)"/>
+        </g>
+        <g class="needle" id="needle">
+          <line x1="140" y1="140" x2="140" y2="34" stroke="#2a2015" stroke-width="3"/>
+          <circle cx="140" cy="140" r="8" fill="#2a2015"/>
+        </g>
+      </svg>
+      <div class="gauge-readout">
+        <div class="thi-value"><span id="thiValue">--</span><span class="unit">THI</span></div>
+        <div class="thi-band-label" id="bandLabel" style="color:var(--ink-soft)">AWAITING DATA</div>
+      </div>
+    </div>
+    <div class="conditions-line" id="conditionsLine">— °F · — % RH · —</div>
+  </div>
+
+  <div class="panel loss-panel">
+    <div class="section-label">
+      <span>Estimated herd loss</span>
+      <span class="confidence-pill" id="confidencePill">—</span>
+    </div>
+    <div class="inputs-row">
+      <div class="input-field">
+        <label for="herdSize">Herd size</label>
+        <div class="prefix-wrap"><span>#</span><input id="herdSize" type="number" value="100" min="1"></div>
+      </div>
+      <div class="input-field">
+        <label for="milkPrice">Milk price</label>
+        <div class="prefix-wrap"><span>$/cwt</span><input id="milkPrice" type="number" value="19.50" step="0.10" min="0"></div>
+      </div>
+    </div>
+    <div class="loss-figure">
+      <div class="dollars" id="lossDollars">$—</div>
+      <div class="per-day">PER DAY, HERD-WIDE</div>
+    </div>
+    <div class="loss-note" id="lossNote">
+      Estimate combines current THI with a state-specific abatement calibration (how much of the textbook physiological loss actually shows up once fans, sprinklers, and shade are accounted for).
+    </div>
+  </div>
+
+  <div class="panel scale-panel">
+    <div class="section-label"><span>THI scale</span></div>
+    <div class="scale-bar" id="scaleBar">
+      <div class="seg comfort"></div>
+      <div class="seg mild"></div>
+      <div class="seg moderate"></div>
+      <div class="seg severe"></div>
+      <div class="seg emergency"></div>
+      <div class="scale-marker" id="scaleMarker" style="left:0%"><div class="tri"></div></div>
+    </div>
+    <div class="scale-labels">
+      <span>50</span><span>68</span><span>72</span><span>78</span><span>84</span><span>95</span>
+    </div>
+  </div>
+
+  <footer>
+    Weather: Open-Meteo ERA5&nbsp;·&nbsp;Loss model: DMI-loss physiological rate, calibrated per state<br>
+    Not a substitute for on-farm monitoring — a field instrument, not a forecast.
+  </footer>
+</div>
+
+<script>
+// ── Per-state calibration lookup ──────────────────────────────────────
+// own_regression = state's own statistically significant DMI-loss calibration
+// fallback_average = average of the 6 significant states, used where the
+// state's own regression wasn't statistically reliable (p >= 0.05)
+const STATE_DATA = {
+  "ARIZONA": { calibration: 32.8633, basis: "fallback_average", county: "Maricopa/Pinal" },
+  "CALIFORNIA": { calibration: 32.8633, basis: "fallback_average", county: "Tulare" },
+  "COLORADO": { calibration: 32.8633, basis: "fallback_average", county: "Weld" },
+  "FLORIDA": { calibration: 32.8633, basis: "fallback_average", county: "Okeechobee" },
+  "IDAHO": { calibration: 32.8633, basis: "fallback_average", county: "Twin Falls/Jerome" },
+  "ILLINOIS": { calibration: 33.7186, basis: "own_regression", county: "Stephenson" },
+  "INDIANA": { calibration: 32.8633, basis: "fallback_average", county: "Elkhart" },
+  "IOWA": { calibration: 38.3417, basis: "own_regression", county: "Sioux" },
+  "KANSAS": { calibration: 32.8633, basis: "fallback_average", county: "Haskell" },
+  "MICHIGAN": { calibration: 32.8633, basis: "fallback_average", county: "Huron" },
+  "MINNESOTA": { calibration: 24.6051, basis: "own_regression", county: "Stearns" },
+  "MISSOURI": { calibration: 32.8633, basis: "fallback_average", county: "Barry" },
+  "NEW MEXICO": { calibration: 32.8633, basis: "fallback_average", county: "Curry/Roosevelt" },
+  "NEW YORK": { calibration: 32.8633, basis: "fallback_average", county: "Wyoming" },
+  "OHIO": { calibration: 29.5888, basis: "own_regression", county: "Wayne" },
+  "OREGON": { calibration: 32.8633, basis: "fallback_average", county: "Tillamook" },
+  "PENNSYLVANIA": { calibration: 32.8633, basis: "fallback_average", county: "Lancaster" },
+  "SOUTH DAKOTA": { calibration: 32.8633, basis: "fallback_average", county: "Turner" },
+  "TEXAS": { calibration: 32.8633, basis: "fallback_average", county: "Castro/Hartley" },
+  "UTAH": { calibration: 32.8633, basis: "fallback_average", county: "Cache" },
+  "VERMONT": { calibration: 38.7118, basis: "own_regression", county: "Franklin" },
+  "VIRGINIA": { calibration: 32.8633, basis: "fallback_average", county: "Rockingham" },
+  "WASHINGTON": { calibration: 32.8633, basis: "fallback_average", county: "Yakima" },
+  "WISCONSIN": { calibration: 32.2136, basis: "own_regression", county: "Marathon" },
+};
+const NATIONAL_FALLBACK = 32.8633; // used for any US state outside the 24 studied
+
+// DMI-loss physiological constants (published rate; see wisconsin-thi-milk-correlation project)
+const DMI_LOSS_PER_DEGREE = 0.17; // lbs DMI lost per THI-degree above 68, per cow per day
+const MILK_PER_DMI_LB = 2.0;      // lbs milk lost per lb DMI lost
+const THI_THRESHOLD = 68;
+
+const stateSelect = document.getElementById('stateSelect');
+const allStates = Object.keys(STATE_DATA).sort();
+stateSelect.innerHTML = '<option value="">Select state…</option>' +
+  allStates.map(s => `<option value="${s}">${titleCase(s)}</option>`).join('');
+
+function titleCase(s){
+  return s.toLowerCase().split(' ').map(w => w[0].toUpperCase()+w.slice(1)).join(' ');
+}
+
+function calcTHI(tempC, rh){
+  return (1.8*tempC + 32) - ((0.55 - 0.0055*rh) * (1.8*tempC - 26));
+}
+
+function bandFor(thi){
+  if (thi < 68) return { name: 'Comfort zone', color: 'var(--comfort)' };
+  if (thi < 72) return { name: 'Mild stress', color: 'var(--mild)' };
+  if (thi < 78) return { name: 'Moderate stress', color: 'var(--moderate)' };
+  if (thi < 84) return { name: 'Severe stress', color: 'var(--severe)' };
+  return { name: 'Emergency', color: 'var(--emergency)' };
+}
+
+function updateGauge(thi){
+  const clamped = Math.max(50, Math.min(95, thi));
+  const frac = (clamped - 50) / (95 - 50);
+  const angle = -90 + frac * 180;
+  document.getElementById('needle').setAttribute('transform', `rotate(${angle} 140 140)`);
+  document.getElementById('thiValue').textContent = thi.toFixed(1);
+  const band = bandFor(thi);
+  const bandEl = document.getElementById('bandLabel');
+  bandEl.textContent = band.name.toUpperCase();
+  bandEl.style.color = band.color;
+
+  const markerPct = ((clamped - 50) / (95 - 50)) * 100;
+  document.getElementById('scaleMarker').style.left = markerPct + '%';
+}
+
+function computeLoss(thi, herdSize, milkPricePerCwt, calibrationPct){
+  const excessDegrees = Math.max(0, thi - THI_THRESHOLD);
+  const textbookLbsPerCow = excessDegrees * DMI_LOSS_PER_DEGREE * MILK_PER_DMI_LB;
+  const realizedLbsPerCow = textbookLbsPerCow * (calibrationPct / 100);
+  const lbsHerdTotal = realizedLbsPerCow * herdSize;
+  const dollarsPerDay = (lbsHerdTotal / 100) * milkPricePerCwt; // cwt = 100 lbs
+  return dollarsPerDay;
+}
+
+let currentTHI = null;
+let currentStateData = null;
+
+function refreshLossPanel(){
+  const herdSize = parseFloat(document.getElementById('herdSize').value) || 0;
+  const milkPrice = parseFloat(document.getElementById('milkPrice').value) || 0;
+  if (currentTHI === null || currentStateData === null){
+    document.getElementById('lossDollars').textContent = '$—';
+    return;
+  }
+  const dollars = computeLoss(currentTHI, herdSize, milkPrice, currentStateData.calibration);
+  document.getElementById('lossDollars').textContent =
+    '$' + dollars.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+  const pill = document.getElementById('confidencePill');
+  if (currentStateData.basis === 'own_regression'){
+    pill.textContent = 'High confidence';
+    pill.className = 'confidence-pill high';
+  } else {
+    pill.textContent = 'Regional estimate';
+    pill.className = 'confidence-pill est';
+  }
+}
+
+document.getElementById('herdSize').addEventListener('input', refreshLossPanel);
+document.getElementById('milkPrice').addEventListener('input', refreshLossPanel);
+
+async function loadWeatherAndState(lat, lon, knownStateName){
+  const statusLine = document.getElementById('statusLine');
+  try{
+    statusLine.textContent = 'Fetching current conditions…';
+    const weatherResp = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m&timezone=auto`
+    );
+    if (!weatherResp.ok) throw new Error('weather fetch failed');
+    const weatherData = await weatherResp.json();
+    const tempC = weatherData.current.temperature_2m;
+    const rh = weatherData.current.relative_humidity_2m;
+    const thi = calcTHI(tempC, rh);
+    currentTHI = thi;
+    updateGauge(thi);
+    const tempF = tempC * 9/5 + 32;
+
+    let stateName = knownStateName;
+    if (!stateName){
+      statusLine.textContent = 'Identifying state…';
+      try{
+        const geoResp = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`
+        );
+        const geoData = await geoResp.json();
+        stateName = (geoData.address && geoData.address.state || '').toUpperCase();
+      } catch(e){
+        stateName = '';
+      }
+    }
+
+    const stateData = STATE_DATA[stateName];
+    currentStateData = stateData || { calibration: NATIONAL_FALLBACK, basis: 'fallback_average', county: null };
+
+    document.getElementById('conditionsLine').textContent =
+      `${tempF.toFixed(0)}°F · ${rh.toFixed(0)}% RH · ${stateName ? titleCase(stateName) : 'location detected'}`;
+
+    if (stateName && STATE_DATA[stateName]) {
+      stateSelect.value = stateName;
+      statusLine.textContent = 'Live reading updated.';
+    } else if (stateName) {
+      statusLine.textContent = `${titleCase(stateName)} wasn't in the 24-state study — using the national regional estimate.`;
+    } else {
+      statusLine.textContent = 'Could not auto-detect state — pick one manually if the estimate looks off.';
+    }
+
+    refreshLossPanel();
+  } catch(err){
+    statusLine.textContent = 'Could not fetch live conditions. Try again, or pick a state manually.';
+    console.error(err);
+  }
+}
+
+document.getElementById('locateBtn').addEventListener('click', () => {
+  const statusLine = document.getElementById('statusLine');
+  const btn = document.getElementById('locateBtn');
+  if (!navigator.geolocation){
+    statusLine.textContent = 'Geolocation not supported in this browser.';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Locating…';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      btn.disabled = false;
+      btn.textContent = 'Use my location';
+      loadWeatherAndState(pos.coords.latitude, pos.coords.longitude, null);
+    },
+    (err) => {
+      btn.disabled = false;
+      btn.textContent = 'Use my location';
+      statusLine.textContent = 'Location permission denied — pick a state manually instead.';
+    }
+  );
+});
+
+// State-approximate coordinates for manual selection (representative county from the study)
+const STATE_COORDS = {
+  "CALIFORNIA": [36.20, -119.35], "TEXAS": [34.53, -102.32], "ARIZONA": [33.05, -111.75],
+  "NEW MEXICO": [34.45, -103.25], "IDAHO": [42.57, -114.46], "FLORIDA": [27.24, -80.83],
+  "WISCONSIN": [44.90, -89.77], "NEW YORK": [42.70, -78.23], "MICHIGAN": [43.90, -83.10],
+  "PENNSYLVANIA": [40.04, -76.30], "MINNESOTA": [45.55, -94.60], "OHIO": [40.80, -81.90],
+  "IOWA": [43.05, -96.10], "INDIANA": [41.60, -85.85], "WASHINGTON": [46.60, -120.50],
+  "COLORADO": [40.45, -104.60], "VERMONT": [44.80, -72.95], "KANSAS": [37.60, -100.85],
+  "OREGON": [45.45, -123.75], "UTAH": [41.70, -111.80], "ILLINOIS": [42.35, -89.65],
+  "MISSOURI": [36.72, -93.83], "SOUTH DAKOTA": [43.65, -97.15], "VIRGINIA": [38.45, -78.90],
+};
+
+stateSelect.addEventListener('change', () => {
+  const s = stateSelect.value;
+  if (!s) return;
+  const coords = STATE_COORDS[s];
+  if (coords) loadWeatherAndState(coords[0], coords[1], s);
+});
+</script>
+</body>
+</html>
