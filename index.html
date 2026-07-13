@@ -209,6 +209,32 @@
     color: var(--ink);
   }
   .input-field input:focus{ outline: 1px solid var(--ink); }
+  .loss-breakdown{
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 12px 2px;
+    margin-bottom: 14px;
+  }
+  .loss-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    padding: 4px 0;
+  }
+  .loss-row-label{ color: var(--ink-soft); }
+  .loss-row-tag{
+    font-size: 9px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    padding: 1px 5px;
+    margin-left: 4px;
+    opacity: 0.8;
+  }
+  .loss-row-value{ color: var(--ink); font-weight:600; }
   .loss-figure{
     text-align:center;
     padding-top: 4px;
@@ -336,12 +362,28 @@
         <div class="prefix-wrap"><span>$/cwt</span><input id="milkPrice" type="number" value="19.50" step="0.10" min="0"></div>
       </div>
     </div>
+    <div class="inputs-row">
+      <div class="input-field">
+        <label for="avgYield">Avg daily yield/cow</label>
+        <div class="prefix-wrap"><span>lbs</span><input id="avgYield" type="number" value="70" step="1" min="1"></div>
+      </div>
+    </div>
+    <div class="loss-breakdown" id="lossBreakdown">
+      <div class="loss-row">
+        <span class="loss-row-label">Yield loss <span class="loss-row-tag" id="yieldTag">state-calibrated</span></span>
+        <span class="loss-row-value" id="yieldDollars">$—</span>
+      </div>
+      <div class="loss-row">
+        <span class="loss-row-label">Component loss <span class="loss-row-tag">national estimate</span></span>
+        <span class="loss-row-value" id="compDollars">$—</span>
+      </div>
+    </div>
     <div class="loss-figure">
       <div class="dollars" id="lossDollars">$—</div>
       <div class="per-day">PER DAY, HERD-WIDE</div>
     </div>
     <div class="loss-note" id="lossNote">
-      Estimate combines current THI with a state-specific abatement calibration (how much of the textbook physiological loss actually shows up once fans, sprinklers, and shade are accounted for).
+      Yield loss combines current THI with a state-specific abatement calibration (how much of the textbook physiological loss actually shows up once fans, sprinklers, and shade are accounted for). Component loss estimates the separate, continuous drop in milk fat/protein revenue value — derived directly from Table S2 of Prieto et al. 2026 (Environ. Res. Lett. 21 124029), which starts well below the yield-loss threshold. This part uses a national average curve, not a state-specific one, since that research wasn't broken out by state.
     </div>
   </div>
 
@@ -404,6 +446,29 @@ const DMI_LOSS_PER_DEGREE = 0.17; // lbs DMI lost per THI-degree above 68, per c
 const MILK_PER_DMI_LB = 2.0;      // lbs milk lost per lb DMI lost
 const THI_THRESHOLD = 68;
 
+// Component (fat/protein) loss — derived from Table S2 of the supplementary data,
+// Prieto, Lin, Reed, Wolf, Ortiz-Bobea 2026, Environ. Res. Lett. 21 124029.
+// Table S2 gives weekly-cumulative effects (log points) of holding THI constant for
+// 168 hours, for both Yield and Revenue. Since Revenue = Yield x (component value
+// term) is multiplicative in their model, log(Revenue) - log(Yield) isolates the
+// composition-only effect using their own tabulated numbers (no linear guesswork).
+// NATIONAL AVERAGE ONLY — not broken out by state, unlike the yield-loss table.
+const THI_TABLE = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90];
+const YIELD_LOGPTS_WEEKLY  = [-0.003,-0.003,-0.003,-0.004,-0.003,-0.003,-0.002,0.001,0.006,0.014,0.023,0.030,0.030,0.018,-0.009,-0.050,-0.102,-0.160];
+const REVENUE_LOGPTS_WEEKLY = [0.045,0.046,0.046,0.046,0.044,0.041,0.037,0.034,0.031,0.029,0.028,0.023,0.013,-0.009,-0.044,-0.092,-0.149,-0.212];
+const COMPOSITION_LOGPTS_WEEKLY = REVENUE_LOGPTS_WEEKLY.map((r, i) => r - YIELD_LOGPTS_WEEKLY[i]);
+
+function interpTable(thi, xs, ys){
+  const x = Math.max(xs[0], Math.min(xs[xs.length - 1], thi));
+  for (let i = 0; i < xs.length - 1; i++){
+    if (x >= xs[i] && x <= xs[i + 1]){
+      const frac = (x - xs[i]) / (xs[i + 1] - xs[i]);
+      return ys[i] + frac * (ys[i + 1] - ys[i]);
+    }
+  }
+  return ys[ys.length - 1];
+}
+
 const stateSelect = document.getElementById('stateSelect');
 const allStates = Object.keys(STATE_DATA).sort();
 stateSelect.innerHTML = '<option value="">Select state…</option>' +
@@ -440,41 +505,68 @@ function updateGauge(thi){
   document.getElementById('scaleMarker').style.left = markerPct + '%';
 }
 
-function computeLoss(thi, herdSize, milkPricePerCwt, calibrationPct){
+function computeYieldLoss(thi, herdSize, milkPricePerCwt, calibrationPct){
   const excessDegrees = Math.max(0, thi - THI_THRESHOLD);
   const textbookLbsPerCow = excessDegrees * DMI_LOSS_PER_DEGREE * MILK_PER_DMI_LB;
   const realizedLbsPerCow = textbookLbsPerCow * (calibrationPct / 100);
   const lbsHerdTotal = realizedLbsPerCow * herdSize;
-  const dollarsPerDay = (lbsHerdTotal / 100) * milkPricePerCwt; // cwt = 100 lbs
-  return dollarsPerDay;
+  return (lbsHerdTotal / 100) * milkPricePerCwt; // cwt = 100 lbs
+}
+
+function computeCompositionLoss(thi, herdSize, milkPricePerCwt, avgYieldLbsPerDay){
+  const weeklyLogPts = interpTable(thi, THI_TABLE, COMPOSITION_LOGPTS_WEEKLY);
+  const dailyLogPts = weeklyLogPts / 7; // 168h / 24h = 7 days
+  const dailyPct = (Math.exp(dailyLogPts) - 1) * 100; // exact log-point -> % conversion
+  const baselineRevenuePerCow = (avgYieldLbsPerDay / 100) * milkPricePerCwt;
+  const baselineRevenueHerd = baselineRevenuePerCow * herdSize;
+  // Negate: a negative dailyPct (revenue falling) must become a POSITIVE dollar loss,
+  // matching computeYieldLoss's convention (positive = money lost). A positive dailyPct
+  // (mild days where composition slightly helps revenue) becomes a negative "loss",
+  // i.e. it correctly offsets the total rather than double-losing.
+  return -baselineRevenueHerd * (dailyPct / 100);
 }
 
 let currentTHI = null;
 let currentStateData = null;
 
+function fmtDollars(n){
+  return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
 function refreshLossPanel(){
   const herdSize = parseFloat(document.getElementById('herdSize').value) || 0;
   const milkPrice = parseFloat(document.getElementById('milkPrice').value) || 0;
+  const avgYield = parseFloat(document.getElementById('avgYield').value) || 0;
   if (currentTHI === null || currentStateData === null){
     document.getElementById('lossDollars').textContent = '$—';
+    document.getElementById('yieldDollars').textContent = '$—';
+    document.getElementById('compDollars').textContent = '$—';
     return;
   }
-  const dollars = computeLoss(currentTHI, herdSize, milkPrice, currentStateData.calibration);
-  document.getElementById('lossDollars').textContent =
-    '$' + dollars.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const yieldDollars = computeYieldLoss(currentTHI, herdSize, milkPrice, currentStateData.calibration);
+  const compDollars = computeCompositionLoss(currentTHI, herdSize, milkPrice, avgYield);
+  const totalDollars = yieldDollars + compDollars;
+
+  document.getElementById('yieldDollars').textContent = fmtDollars(yieldDollars);
+  document.getElementById('compDollars').textContent = fmtDollars(compDollars);
+  document.getElementById('lossDollars').textContent = fmtDollars(totalDollars);
 
   const pill = document.getElementById('confidencePill');
+  const yieldTag = document.getElementById('yieldTag');
   if (currentStateData.basis === 'own_regression'){
     pill.textContent = 'High confidence';
     pill.className = 'confidence-pill high';
+    yieldTag.textContent = 'state-calibrated';
   } else {
     pill.textContent = 'Regional estimate';
     pill.className = 'confidence-pill est';
+    yieldTag.textContent = 'regional avg.';
   }
 }
 
 document.getElementById('herdSize').addEventListener('input', refreshLossPanel);
 document.getElementById('milkPrice').addEventListener('input', refreshLossPanel);
+document.getElementById('avgYield').addEventListener('input', refreshLossPanel);
 
 async function loadWeatherAndState(lat, lon, knownStateName){
   const statusLine = document.getElementById('statusLine');
