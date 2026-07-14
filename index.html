@@ -298,7 +298,114 @@
     border-right: 5px solid transparent;
     border-top: 7px solid var(--ink);
   }
-  footer{
+  .calendar-panel{ padding: 20px 22px 22px; margin-bottom: 14px; }
+  .cal-month-label{
+    font-family:'Zilla Slab', serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .cal-grid{
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+  .cal-dow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    text-align: center;
+    padding-bottom: 4px;
+  }
+  .cal-cell{
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    cursor: default;
+    position: relative;
+    min-height: 44px;
+  }
+  .cal-cell.has-data{ cursor: pointer; }
+  .cal-cell.has-data:hover{ filter: brightness(1.1); }
+  .cal-cell.empty{ background: transparent; }
+  .cal-cell.future{ background: rgba(0,0,0,0.04); }
+  .cal-cell.comfort{ background: rgba(92,138,78,0.22); }
+  .cal-cell.mild{ background: rgba(169,162,58,0.30); }
+  .cal-cell.moderate{ background: rgba(217,155,52,0.35); }
+  .cal-cell.severe{ background: rgba(198,106,52,0.40); }
+  .cal-cell.emergency{ background: rgba(168,58,44,0.45); }
+  .cal-cell.today-cell{
+    outline: 2px solid var(--ink);
+    outline-offset: -2px;
+  }
+  .cal-day-num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .cal-thi{
+    font-family:'Zilla Slab', serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.2;
+    margin-top: 2px;
+  }
+  .cal-thi.future-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 400;
+    color: var(--ink-soft);
+  }
+  .cal-detail-popup{
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(420px, 92vw);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    padding: 18px 20px 16px;
+    z-index: 100;
+    display: none;
+  }
+  .cal-detail-popup.visible{ display: block; }
+  .cal-detail-close{
+    position: absolute;
+    top: 10px; right: 14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 14px;
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .cal-detail-title{
+    font-family:'Zilla Slab', serif;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--ink);
+  }
+  .cal-detail-row{
+    display: flex;
+    justify-content: space-between;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(162,145,107,0.2);
+  }
+  .cal-detail-row span:last-child{ color: var(--ink); font-weight: 600; }
     text-align:center;
     font-family:'IBM Plex Mono', monospace;
     font-size: 10.5px;
@@ -370,7 +477,7 @@
     </div>
     <div class="loss-breakdown" id="lossBreakdown">
       <div class="loss-row">
-        <span class="loss-row-label">Yield loss <span class="loss-row-tag" id="yieldTag">state-calibrated</span></span>
+        <span class="loss-row-label">Yield loss <span class="loss-row-tag" id="yieldTag">state-calibrated</span> <span class="loss-row-tag" id="herdTag">—</span></span>
         <span class="loss-row-value" id="yieldDollars">$—</span>
       </div>
       <div class="loss-row">
@@ -383,7 +490,7 @@
       <div class="per-day">PER DAY, HERD-WIDE</div>
     </div>
     <div class="loss-note" id="lossNote">
-      Yield loss combines current THI with a state-specific abatement calibration (how much of the textbook physiological loss actually shows up once fans, sprinklers, and shade are accounted for). Component loss estimates the separate, continuous drop in milk fat/protein revenue value — derived directly from Table S2 of Prieto et al. 2026 (Environ. Res. Lett. 21 124029), which starts well below the yield-loss threshold. This part uses a national average curve, not a state-specific one, since that research wasn't broken out by state.
+      Yield loss combines current THI with a state-specific abatement calibration, scaled by a herd-size multiplier (Hutchins, Skidmore & Nolan, Food Policy 2025: small herds <100 lose ~47% more per stress day than large herds >500; medium herds ~20% more). Component loss estimates the separate, continuous drop in milk fat/protein revenue value — derived directly from Table S2 of Prieto et al. 2026 (Environ. Res. Lett. 21 124029). Component loss uses a national average curve only.
     </div>
   </div>
 
@@ -402,6 +509,23 @@
     </div>
   </div>
 
+  <div class="panel calendar-panel" id="calendarPanel" style="display:none">
+    <div class="section-label"><span id="calMonthLabel">Monthly THI</span></div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <div class="cal-detail-popup" id="calDetailPopup">
+    <button class="cal-detail-close" id="calDetailClose">✕</button>
+    <div class="cal-detail-title" id="calDetailTitle">—</div>
+    <div class="cal-detail-row"><span>THI</span><span id="calDetailTHI">—</span></div>
+    <div class="cal-detail-row"><span>Temperature</span><span id="calDetailTemp">—</span></div>
+    <div class="cal-detail-row"><span>Humidity</span><span id="calDetailRH">—</span></div>
+    <div class="cal-detail-row"><span>Stress level</span><span id="calDetailBand">—</span></div>
+    <div class="cal-detail-row"><span>Yield loss</span><span id="calDetailYield">—</span></div>
+    <div class="cal-detail-row"><span>Component loss</span><span id="calDetailComp">—</span></div>
+    <div class="cal-detail-row" style="border:none"><span>Total loss</span><span id="calDetailTotal">—</span></div>
+  </div>
+
   <footer>
     Weather: Open-Meteo ERA5&nbsp;·&nbsp;Loss model: DMI-loss physiological rate, calibrated per state<br>
     Not a substitute for on-farm monitoring — a field instrument, not a forecast.
@@ -409,7 +533,161 @@
 </div>
 
 <script>
-// ── Per-state calibration lookup ──────────────────────────────────────
+
+// ── CALENDAR ─────────────────────────────────────────────────────────────
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+let calendarData = {}; // { 'YYYY-MM-DD': { thi, temp_c, rh, temp_f } }
+let calLat = null, calLon = null;
+
+async function loadCalendar(lat, lon, todayTHI, todayTempC, todayRH){
+  calLat = lat; calLon = lon;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+  const today = now.getDate();
+
+  document.getElementById('calendarPanel').style.display = 'block';
+  document.getElementById('calMonthLabel').textContent =
+    `${MONTH_NAMES[month]} ${year} — daily THI`;
+
+  // Store today's live reading
+  const todayStr = isoDate(year, month + 1, today);
+  calendarData[todayStr] = {
+    thi: todayTHI,
+    temp_c: todayTempC,
+    rh: todayRH,
+    temp_f: todayTempC * 9/5 + 32,
+  };
+
+  // Fetch past days of this month (day 1 through yesterday)
+  if (today > 1){
+    const startDate = isoDate(year, month + 1, 1);
+    const endDate = isoDate(year, month + 1, today - 1);
+    try{
+      const r = await fetch(
+        `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}` +
+        `&start_date=${startDate}&end_date=${endDate}` +
+        `&daily=temperature_2m_mean,relative_humidity_2m_mean&timezone=auto`
+      );
+      if (r.ok){
+        const d = await r.json();
+        d.daily.time.forEach((dateStr, i) => {
+          const tc = d.daily.temperature_2m_mean[i];
+          const rh = d.daily.relative_humidity_2m_mean[i];
+          if (tc != null && rh != null){
+            calendarData[dateStr] = {
+              thi: calcTHI(tc, rh),
+              temp_c: tc,
+              rh: rh,
+              temp_f: tc * 9/5 + 32,
+            };
+          }
+        });
+      }
+    } catch(e){ console.warn('Calendar archive fetch failed', e); }
+  }
+
+  renderCalendar(year, month, today);
+}
+
+function isoDate(year, month, day){
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+function renderCalendar(year, month, today){
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+
+  // Day-of-week headers
+  DOW.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'cal-dow';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Empty cells before day 1
+  for (let i = 0; i < firstDow; i++){
+    const el = document.createElement('div');
+    el.className = 'cal-cell empty';
+    grid.appendChild(el);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++){
+    const dateStr = isoDate(year, month + 1, day);
+    const data = calendarData[dateStr];
+    const isToday = day === today;
+    const isFuture = day > today;
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+
+    if (isFuture){
+      cell.classList.add('future');
+    } else if (data){
+      const band = bandFor(data.thi);
+      const bandClass = band.name.toLowerCase().split(' ')[0];
+      cell.classList.add(bandClass === 'comfort' ? 'comfort' :
+                         bandClass === 'mild' ? 'mild' :
+                         bandClass === 'moderate' ? 'moderate' :
+                         bandClass === 'severe' ? 'severe' : 'emergency');
+      cell.classList.add('has-data');
+      cell.addEventListener('click', () => showCalDetail(dateStr, day, data));
+    }
+    if (isToday) cell.classList.add('today-cell');
+
+    const dayNum = document.createElement('div');
+    dayNum.className = 'cal-day-num';
+    dayNum.textContent = day;
+    cell.appendChild(dayNum);
+
+    const thiEl = document.createElement('div');
+    thiEl.className = 'cal-thi' + (isFuture ? ' future-label' : '');
+    thiEl.textContent = isFuture ? '—' : (data ? data.thi.toFixed(0) : '?');
+    cell.appendChild(thiEl);
+
+    grid.appendChild(cell);
+  }
+}
+
+function showCalDetail(dateStr, day, data){
+  const now = new Date();
+  const monthName = MONTH_NAMES[now.getMonth()];
+  const herdSize = parseFloat(document.getElementById('herdSize').value) || 0;
+  const milkPrice = parseFloat(document.getElementById('milkPrice').value) || 0;
+  const avgYield = parseFloat(document.getElementById('avgYield').value) || 0;
+
+  const band = bandFor(data.thi);
+  const yLoss = currentStateData
+    ? computeYieldLoss(data.thi, herdSize, milkPrice, currentStateData.calibration) : 0;
+  const cLoss = computeCompositionLoss(data.thi, herdSize, milkPrice, avgYield);
+  const tier = herdTier(herdSize);
+
+  document.getElementById('calDetailTitle').textContent = `${monthName} ${day}`;
+  document.getElementById('calDetailTHI').textContent = data.thi.toFixed(1);
+  document.getElementById('calDetailTemp').textContent = `${data.temp_f.toFixed(0)}°F`;
+  document.getElementById('calDetailRH').textContent = `${data.rh.toFixed(0)}%`;
+  document.getElementById('calDetailBand').textContent = band.name;
+  document.getElementById('calDetailYield').textContent =
+    fmtDollars(yLoss) + ` (${tier.label})`;
+  document.getElementById('calDetailComp').textContent = fmtDollars(cLoss);
+  document.getElementById('calDetailTotal').textContent = fmtDollars(yLoss + cLoss);
+
+  document.getElementById('calDetailPopup').classList.add('visible');
+}
+
+document.getElementById('calDetailClose').addEventListener('click', () => {
+  document.getElementById('calDetailPopup').classList.remove('visible');
+});
+
+
+
 // own_regression = state's own statistically significant DMI-loss calibration
 // fallback_average = average of the 6 significant states, used where the
 // state's own regression wasn't statistically reliable (p >= 0.05)
@@ -441,7 +719,20 @@ const STATE_DATA = {
 };
 const NATIONAL_FALLBACK = 32.8633; // used for any US state outside the 24 studied
 
-// DMI-loss physiological constants (published rate; see wisconsin-thi-milk-correlation project)
+// Herd-size loss multipliers — Hutchins, Skidmore & Nolan (Food Policy 131, 2025)
+// Small herds (<100) lose ~50% more per extreme stress day than large herds (>500):
+// small: 10% vs large: 6.8% on extreme-stress days → ratio 10/6.8 ≈ 1.47.
+// Medium (101-500) interpolated — study positions them between small and large.
+// Applied to yield loss only (composition channel unchanged).
+const HERD_SIZE_TIERS = [
+  { label: 'Small (<100)',   maxSize: 100,  multiplier: 1.47 },
+  { label: 'Medium (101–500)', maxSize: 500, multiplier: 1.20 },
+  { label: 'Large (>500)',   maxSize: Infinity, multiplier: 1.00 },
+];
+
+function herdTier(herdSize){
+  return HERD_SIZE_TIERS.find(t => herdSize <= t.maxSize) || HERD_SIZE_TIERS[2];
+}
 const DMI_LOSS_PER_DEGREE = 0.17; // lbs DMI lost per THI-degree above 68, per cow per day
 const MILK_PER_DMI_LB = 2.0;      // lbs milk lost per lb DMI lost
 const THI_THRESHOLD = 68;
@@ -509,7 +800,8 @@ function computeYieldLoss(thi, herdSize, milkPricePerCwt, calibrationPct){
   const excessDegrees = Math.max(0, thi - THI_THRESHOLD);
   const textbookLbsPerCow = excessDegrees * DMI_LOSS_PER_DEGREE * MILK_PER_DMI_LB;
   const realizedLbsPerCow = textbookLbsPerCow * (calibrationPct / 100);
-  const lbsHerdTotal = realizedLbsPerCow * herdSize;
+  const tier = herdTier(herdSize);
+  const lbsHerdTotal = realizedLbsPerCow * herdSize * tier.multiplier;
   return (lbsHerdTotal / 100) * milkPricePerCwt; // cwt = 100 lbs
 }
 
@@ -550,6 +842,10 @@ function refreshLossPanel(){
   document.getElementById('yieldDollars').textContent = fmtDollars(yieldDollars);
   document.getElementById('compDollars').textContent = fmtDollars(compDollars);
   document.getElementById('lossDollars').textContent = fmtDollars(totalDollars);
+
+  const tier = herdTier(herdSize);
+  document.getElementById('herdTag').textContent =
+    tier.multiplier === 1.0 ? tier.label : `${tier.label} ×${tier.multiplier.toFixed(2)}`;
 
   const pill = document.getElementById('confidencePill');
   const yieldTag = document.getElementById('yieldTag');
@@ -614,6 +910,8 @@ async function loadWeatherAndState(lat, lon, knownStateName){
     }
 
     refreshLossPanel();
+    // Kick off the monthly calendar with this location and today's live values
+    loadCalendar(lat, lon, thi, tempC, rh);
   } catch(err){
     statusLine.textContent = 'Could not fetch live conditions. Try again, or pick a state manually.';
     console.error(err);
